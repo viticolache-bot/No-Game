@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AquaSim Santa Marta 3D</title>
+<style>
+:root{--deep:#0a2a4a;--blue:#1769aa;--light:#d8ecfa;--bg:#eef3f8;--card:#fff;--txt:#17283a;--mut:#5b6b7c;--bd:#c9d6e2;--ok:#1b9a5a;--warn:#e0920b;--bad:#cf3b3b}
+*{box-sizing:border-box}
+body{margin:0;font-family:"Segoe UI",system-ui,Arial,sans-serif;background:var(--bg);color:var(--txt);font-size:14px}
+header{background:var(--deep);color:#fff;padding:10px 16px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+header h1{margin:0;font-size:1.25rem}header p{margin:2px 0 0;font-size:.8rem;color:#a9cde8}
+.btns{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+button,select{font:inherit;border:1px solid var(--blue);background:var(--blue);color:#fff;border-radius:6px;padding:6px 12px;cursor:pointer}
+button.sec{background:#fff;color:var(--blue)}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #ffb703;outline-offset:1px}
+.led{display:inline-flex;align-items:center;gap:6px;font-size:.85rem;padding:4px 10px;border-radius:14px;background:#123d66}
+.led i{width:10px;height:10px;border-radius:50%;background:#8aa;display:inline-block}.led.on i{background:#3ddc84}
+.warnbar{background:#fff7e0;border-bottom:1px solid #f0d890;padding:6px 16px;font-size:.8rem;color:#6a4b00}
+.app{display:grid;grid-template-columns:310px minmax(0,1fr) 320px;gap:10px;padding:10px}
+.panel{background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:10px;min-width:0}
+.side{max-height:620px;overflow:auto}
+h2{font-size:.95rem;margin:0 0 8px;color:var(--deep)}h3{font-size:.85rem;margin:12px 0 6px;color:var(--blue);border-bottom:1px solid var(--bd);padding-bottom:3px}
+.ctl{margin-bottom:8px}.ctl label{display:flex;justify-content:space-between;font-size:.78rem;color:var(--mut)}
+.ctl .row{display:flex;gap:6px;align-items:center}.ctl input[type=range]{flex:1;min-width:0}
+.ctl input[type=number]{width:92px;padding:3px 5px;border:1px solid var(--bd);border-radius:4px}
+#view{position:relative;height:620px;border-radius:8px;overflow:hidden;background:#cfe6f5}
+#view canvas{display:block;width:100%;height:100%;touch-action:none}
+.vbtn{position:absolute;top:8px;left:8px;display:flex;gap:6px;flex-wrap:wrap}
+.vbtn button{padding:4px 8px;font-size:.78rem}
+#info{position:absolute;left:8px;bottom:8px;right:8px;background:rgba(10,42,74,.88);color:#fff;padding:6px 10px;border-radius:6px;font-size:.8rem}
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.m{border:1px solid var(--bd);border-radius:6px;padding:6px;background:#f8fbfe}.m b{display:block;font-size:1rem;color:var(--deep)}.m span{font-size:.72rem;color:var(--mut)}
+.m.ok b{color:var(--ok)}.m.warn b{color:var(--warn)}.m.bad b{color:var(--bad)}
+#alerts div{padding:5px 8px;border-radius:5px;margin-bottom:4px;font-size:.8rem;border-left:4px solid}
+.a-ok{background:#e6f6ed;border-color:var(--ok)}.a-warn{background:#fff3da;border-color:var(--warn)}.a-bad{background:#fde7e7;border-color:var(--bad)}
+.bottom{padding:0 10px 14px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.bottom .panel canvas{max-height:260px}
+.eq{font-family:Consolas,monospace;font-size:.78rem;background:#f3f7fb;border:1px solid var(--bd);border-radius:6px;padding:8px;white-space:pre-wrap;overflow-x:auto;margin:6px 0}
+.full{grid-column:1/-1}
+@media(max-width:1050px){.app{grid-template-columns:1fr}.side{max-height:none}#view{height:420px}.bottom{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+ <div><h1>AquaSim Santa Marta 3D: Simulador de Abastecimiento y Distribución de Agua Potable</h1>
+ <p>Modelación y simulación hidráulica aplicada a Santa Marta · Línea: Gestión Integral de Recursos Hídricos en Zonas Costeras (con hidráulica de redes de acueducto)</p></div>
+ <div class="btns">
+  <span class="led" id="led"><i></i><span id="ledt">Detenido</span></span>
+  <button id="bStart">Iniciar</button><button id="bPause" class="sec">Pausar</button>
+  <button id="bReset" class="sec">Reiniciar</button><button id="bRestore" class="sec">Restaurar parámetros</button>
+  <select id="speed" title="Velocidad de simulación"><option value="1">1×</option><option value="10">10×</option><option value="60" selected>60×</option><option value="600">600×</option><option value="3600">3600×</option></select>
+ </div>
+</header>
+<div class="warnbar">Este simulador es una herramienta académica de modelación hidráulica. Los valores predeterminados son ilustrativos y no constituyen mediciones oficiales ni un diagnóstico operativo del acueducto real de Santa Marta.</div>
+<main class="app">
+ <section class="panel side" aria-label="Controles"><h2>Parámetros hidráulicos (hipotéticos)</h2><div id="controls"></div></section>
+ <section class="panel" style="padding:0">
+  <div id="view"><div class="vbtn"><button id="bHome">Vista inicial</button><button id="bLabels" class="sec">Nombres</button></div><div id="info">Clic en un elemento para ver sus datos. Arrastre: rotar · clic derecho/Mayús: desplazar · rueda o pellizco: zoom.</div></div>
+ </section>
+ <section class="panel side" aria-label="Resultados"><h2>Resultados en tiempo real</h2><div class="cards" id="cards"></div><h3>Alertas</h3><div id="alerts"></div>
+  <h3>Tubería seleccionada</h3><select id="pipeSel" style="width:100%;color:#17283a;background:#fff"><option value="P1">P1 PTAP → Bomba</option><option value="P2" selected>P2 Bomba → Tanque (conducción)</option><option value="P3">P3 Tanque → Red</option></select><div class="cards" id="pipeInfo" style="margin-top:6px"></div></section>
+</main>
+<section class="bottom">
+ <div class="panel"><h2>Volumen almacenado en el tanque (m³)</h2><canvas id="c1"></canvas></div>
+ <div class="panel"><h2>Caudales: entrada, demanda y entregado (L/s)</h2><canvas id="c2"></canvas></div>
+ <div class="panel"><h2>Carga de bombeo, pérdida hf y carga residual (m)</h2><canvas id="c3"></canvas></div>
+ <div class="panel"><h2>Optimización cuadrática de canal rectangular</h2><div id="qctl"></div><canvas id="c4"></canvas><div class="eq" id="qres"></div></div>
+ <div class="panel full"><h2>Ecuaciones activas con valores actuales</h2><div class="eq" id="eqs"></div>
+ <div class="eq">Supuestos: (1) El tanque es rectangular y V se limita a [0, Vmax]. (2) Q de la conducción P2 = caudal de entrada; Q de P3 = caudal que sale del tanque. (3) Las pérdidas volumétricas p se aplican UNA sola vez, a la salida del tanque hacia la red: Qentregado = Qsalida·(1−p). (4) Si Hresidual &lt; 0 la bomba no vence la conducción y el caudal efectivo de entrada es 0. (5) Se reparte el suministro entre sectores en proporción a su demanda (40 %, 35 %, 25 %). (6) Fricción: laminar 64/Re (Re&lt;2300), Swamee-Jain (Re≥4000), interpolación lineal en la zona de transición. (7) Costos y tarifas son supuestos editables, no valores oficiales.</div></div>
+</section>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+"use strict";
+/* ===== Módulo de unidades (SI interno) ===== */
+const U={Lps_m3s:x=>x/1000,m3s_Lps:x=>x*1000,mm_m:x=>x/1000,m_mm:x=>x*1000,min_s:x=>x*60,h_s:x=>x*3600,d_s:x=>x*86400,s_h:x=>x/3600,s_min:x=>x/60,s_d:x=>x/86400,kW_W:x=>x*1000,W_kW:x=>x/1000};
+const EPS=1e-9,G=9.80665;
+const approx=(a,b,t=1e-9)=>Math.abs(a-b)<=t*Math.max(1,Math.abs(a),Math.abs(b));
+const clamp=(x,a,b)=>Math.min(b,Math.max(a,x));
+const fmt=(x,d=2)=>Number.isFinite(x)?x.toLocaleString("es-CO",{minimumFractionDigits:d,maximumFractionDigits:d}):"—";
+const $=id=>document.getElementById(id);
+
+/* ===== Parámetros ===== */
+const CFG=[
+["Fuente y bombeo",
+ ["qin","Caudal de entrada","L/s",0,100,.1,40],["hp","Carga de bombeo Hp","m",0,100,.1,45],["dz","Desnivel Δz (tanque−bomba)","m",-20,100,.1,20],["eta","Eficiencia global η","",.2,.95,.01,.65]],
+["Demanda",
+ ["qd","Demanda base","L/s",0,100,.1,35],["fd","Factor de demanda","",0,2,.01,1]],
+["Válvulas de control",["vin","Apertura válvula de entrada","%",0,100,1,100],["vout","Apertura válvula de salida a la red","%",0,100,1,100]],
+["Tubería principal (P2)",
+ ["D","Diámetro interior","mm",25,500,1,200],["L","Longitud","m",10,5000,1,1500],["eps","Rugosidad absoluta","mm",.001,3,.001,.1],["T","Temperatura del agua","°C",0,40,.5,20]],
+["Tanque rectangular",
+ ["TL","Largo","m",1,60,.1,20],["TB","Ancho","m",1,60,.1,10],["TH","Altura útil","m",.5,20,.1,4],["h0","Nivel inicial","m",0,4,.01,2.5]],
+["Pérdidas",
+ ["loss","Pérdidas volumétricas (salida del tanque)","%",0,50,.1,8]],
+["Costos (supuestos editables)",
+ ["tar","Tarifa de energía","COP/kWh",0,3000,1,800],["fijo","Cargo fijo mensual","COP",0,5000000,1000,150000],["hrs","Horas de operación por día","h",0,24,.5,16],["dias","Días de operación al mes","d",1,31,1,30],["pnom","Potencia nominal manual (0 = usar ecuación hidráulica)","kW",0,500,.1,0]]
+];
+const DEF={};CFG.forEach(g=>g.slice(1).forEach(c=>DEF[c[0]]=c[6]));
+let p={...DEF},LIM={};CFG.forEach(g=>g.slice(1).forEach(c=>LIM[c[0]]=[c[3],c[4]]));
+const Q={P:12,y:2.5,At:15};
+
+/* ===== Propiedades del agua y funciones hidráulicas ===== */
+function aguaProps(T){ // densidad (Kell aprox.) y viscosidad (Vogel)
+ const rho=1000*(1-((T+288.9414)/(508929.2*(T+68.12963)))*Math.pow(T-3.9863,2));
+ const mu=2.414e-5*Math.pow(10,247.8/(T+273.15-140));
+ return{rho,mu};}
+const areaCirc=D=>Math.PI*D*D/4;
+const velocidad=(Qm,D)=>Qm/areaCirc(D);
+const reynolds=(rho,v,D,mu)=>rho*v*D/mu;
+function hfLaminar(mu,L,Qm,rho,D){return 128*mu*L*Qm/(rho*G*Math.PI*Math.pow(D,4));}
+function fSwameeJain(Re,eD){return 0.25/Math.pow(Math.log10(eD/3.7+5.74/Math.pow(Re,.9)),2);}
+function factorFriccion(Re,eD){
+ if(Re<EPS)return 0;if(Re<2300)return 64/Re;if(Re>=4000)return fSwameeJain(Re,eD);
+ const f1=64/2300,f2=fSwameeJain(4000,eD);return f1+(f2-f1)*(Re-2300)/1700;}
+const hfDarcy=(f,L,D,v)=>f*(L/D)*v*v/(2*G);
+function tuberia(Qm,Dmm,L,epsmm){
+ const{rho,mu}=aguaProps(p.T),D=U.mm_m(Dmm);
+ const v=velocidad(Qm,D),Re=reynolds(rho,v,D,mu);
+ const reg=Qm<EPS?"en reposo":Re<2300?"laminar":Re<4000?"transición":"turbulento";
+ const f=factorFriccion(Re,U.mm_m(epsmm)/D);
+ const hf=reg==="laminar"?hfLaminar(mu,L,Qm,rho,D):hfDarcy(f,L,D,v);
+ return{Q:Qm,D,L,v,Re,reg,f,hf,rho,mu};}
+const presionPa=(rho,H)=>rho*G*H; // p = ρ g H
+function volTanque(){const L=p.TL,B=p.TB,H=p.TH;return{Vmax:L*B*H,area:L*B};}
+const nivel=(V,A)=>V/A;
+const potenciaElec=(rho,Qm,H,eta)=>rho*G*Qm*H/eta; // W
+const costoLineal=(E,tar,fijo)=>E*tar+fijo;
+function canalOpt(P){return{y:P/4,b:P/2,A:P*P/8};}
+const areaCanal=(P,y)=>P*y-2*y*y;
+function raicesCanal(P,At){const d=P*P-8*At;if(d<0)return null;const s=Math.sqrt(d);return[(P-s)/4,(P+s)/4];}
+
+/* ===== Estado y balance ===== */
+const S={V:0,lake:5e5,t:0,run:false,cIn:0,cOut:0,cSp:0,cLoss:0,V0:0,hist:{t:[],V:[],qin:[],qd:[],qe:[],hp:[],hf:[],hr:[]},lastSample:0};
+function flujos(dt){
+ const pm=tuberia(U.Lps_m3s(p.qin*p.vin/100),p.D,p.L,p.eps);
+ const Hres=p.hp-pm.hf-p.dz;
+ const pumpOn=pm.Q>EPS&&Hres>=0&&S.lake>EPS;
+ const Qin=pumpOn?pm.Q:0;
+ const Qdem=U.Lps_m3s(p.qd*p.fd),lp=p.loss/100;
+ const Qreq=lp<1?Qdem/(1-lp)*p.vout/100:0;
+ const Qout=Math.min(Qreq,Qin+S.V/Math.max(dt,EPS));
+ const Qdel=Qout*(1-lp),Qloss=Qout*lp;
+ const Qdef=Math.max(0,Qdem-Qdel),Qdisp=Qin*(1-lp),Qexc=Math.max(0,Qdisp-Qdem);
+ return{pm,Hres,pumpOn,Qin,Qdem,Qout,Qdel,Qloss,Qdef,Qdisp,Qexc,defPct:Qdem>EPS?Qdef/Qdem*100:0};}
+function paso(dt){
+ const F=flujos(dt),{Vmax}=volTanque();
+ let Vn=S.V+(F.Qin-F.Qout)*dt,sp=0;
+ if(Vn>Vmax){sp=Vn-Vmax;Vn=Vmax;} if(Vn<0)Vn=approx(Vn,0,1e-6)?0:0;
+ S.V=Vn;S.lake=Math.max(0,S.lake-F.Qin*dt);S.t+=dt;
+ S.cIn+=F.Qin*dt;S.cOut+=F.Qout*dt;S.cSp+=sp;S.cLoss+=F.Qloss*dt;}
+function resetStats(){S.cIn=S.cOut=S.cSp=S.cLoss=0;S.V0=S.V;}
+function reiniciar(){const{area,Vmax}=volTanque();S.V=clamp(p.h0*area,0,Vmax);S.lake=5e5;S.t=0;resetStats();
+ for(const k in S.hist)S.hist[k].length=0;S.lastSample=-1e9;muestrear();actualizar();}
+
+/* ===== Controles ===== */
+function mkCtl(host,c,store,cb){
+ const[id,lab,un,mn,mx,st,df]=c;const d=document.createElement("div");d.className="ctl";
+ d.innerHTML=`<label for="n_${id}"><span>${lab}</span><span>${un}</span></label><div class="row"><input type="range" id="r_${id}" min="${mn}" max="${mx}" step="${st}"><input type="number" id="n_${id}" min="${mn}" max="${mx}" step="${st}"></div>`;
+ host.appendChild(d);const r=d.querySelector("input[type=range]"),n=d.querySelector("input[type=number]");
+ const set=v=>{v=parseFloat(String(v).replace(",","."));if(!Number.isFinite(v))v=store[id];v=clamp(v,+r.min,+r.max);store[id]=v;r.value=v;n.value=v;};
+ set(store[id]);
+ r.oninput=()=>{set(r.value);cb(id)};n.onchange=()=>{set(n.value);cb(id)};}
+function syncCtl(id){const v=p[id];$("r_"+id).value=v;$("n_"+id).value=v;}
+function setMax(id,mx){LIM[id][1]=mx;["r_","n_"].forEach(x=>$(x+id).max=mx);if(p[id]>mx){p[id]=mx;syncCtl(id);}}
+function onChange(id){
+ const{area,Vmax}=volTanque();
+ if(id==="TH"){setMax("h0",p.TH);}
+ if(id==="h0"){S.V=clamp(p.h0*area,0,Vmax);resetStats();}
+ if(["TL","TB","TH"].includes(id)){S.V=Math.min(S.V,Vmax);resetStats();}
+ actualizar();}
+CFG.forEach(g=>{const h=document.createElement("h3");h.textContent=g[0];$("controls").appendChild(h);g.slice(1).forEach(c=>mkCtl($("controls"),c,p,onChange));});
+
+/* Controles del módulo cuadrático */
+const qdef=[["P","Perímetro mojado P","m",1,100,.1,12],["y","Profundidad y","m",.01,50,.01,2.5],["At","Área objetivo A","m²",.1,1000,.1,15]];
+qdef.forEach(c=>mkCtl($("qctl"),c,Q,id=>{if(id==="P"){const m=Q.P/2-.01;$("r_y").max=$("n_y").max=m;if(Q.y>m){Q.y=m;syncQ();}}actualizar();}));
+function syncQ(){["P","y","At"].forEach(k=>{$("r_"+k).value=Q[k];$("n_"+k).value=Q[k];});}
+$("r_y").max=$("n_y").max=Q.P/2-.01;
+
+/* ===== Escena 3D ===== */
+const view=$("view");
+const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;view.appendChild(renderer.domElement);
+const scene=new THREE.Scene();scene.background=new THREE.Color(0xcfe6f5);scene.fog=new THREE.Fog(0xcfe6f5,120,260);
+const cam=new THREE.PerspectiveCamera(50,1,.1,500);
+scene.add(new THREE.HemisphereLight(0xffffff,0x6b8aa5,.85));const dl=new THREE.DirectionalLight(0xffffff,.7);dl.position.set(35,60,45);dl.castShadow=true;dl.shadow.mapSize.set(2048,2048);Object.assign(dl.shadow.camera,{left:-90,right:90,top:60,bottom:-60,near:10,far:220});scene.add(dl);
+const M=(c,o)=>new THREE.MeshLambertMaterial(Object.assign({color:c},o||{}));
+const selectable=[];
+function add(mesh,id,parent){mesh.userData.id=id;(parent||scene).add(mesh);selectable.push(mesh);return mesh;}
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(190,130),M(0xcdd9b8));ground.rotation.x=-Math.PI/2;ground.position.set(5,-.05,0);scene.add(ground);
+const labels=[];
+function label(txt,x,y,z){const c=document.createElement("canvas");c.width=256;c.height=64;const g=c.getContext("2d");g.fillStyle="rgba(10,42,74,.85)";g.fillRect(0,0,256,64);g.fillStyle="#fff";g.font="bold 26px Arial";g.textAlign="center";g.fillText(txt,128,40);
+ const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthTest:false}));s.scale.set(10,2.5,1);s.position.set(x,y,z);scene.add(s);labels.push(s);return s;}
+/* Entorno */
+function bx(w,h,d,c,x,y,z,par,id,o){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),M(c,o));m.position.set(x,y,z);if(id)add(m,id,par);else(par||scene).add(m);return m;}
+function cy(rt,rb,h,c,x,y,z,par,id,seg,o){const m=new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,seg||24),M(c,o));m.position.set(x,y,z);if(id)add(m,id,par);else(par||scene).add(m);return m;}
+function tree(x,z,sc,par){const g=new THREE.Group();g.position.set(x,0,z);(par||scene).add(g);cy(.12*sc,.18*sc,1.6*sc,0x6b4a2f,0,.8*sc,0,g,null,6);cy(0,1*sc,2.2*sc,0x2f7d46,0,2.4*sc,0,g,null,8);cy(0,.8*sc,1.8*sc,0x3a9157,0,3.5*sc,0,g,null,8);}
+const sea=new THREE.Mesh(new THREE.PlaneGeometry(140,320),M(0x2aa6c4,{transparent:true,opacity:.9}));sea.rotation.x=-Math.PI/2;sea.position.set(172,-.1,0);scene.add(sea);
+bx(12,.1,320,0xe8dcb8,104,-.02,0);
+[[-60,-80,40,32],[-20,-86,50,42],[25,-80,44,36],[70,-86,48,40],[-98,-70,36,26]].forEach(([x,z,r,h])=>{cy(0,r,h,0x5d7f66,x,h/2-1,z,null,null,7);cy(0,r*.22,h*.22,0xf2f5f7,x,h-1-h*.11,z,null,null,7);});
+[[-52,-22],[-56,20],[-30,-24],[-8,-14],[8,16],[30,-18],[33,18],[62,-24],[64,24],[-10,22]].forEach(([x,z],i)=>tree(x,z,.8+(i%3)*.25));
+/* Fuente y captación */
+const lakeG=new THREE.Mesh(new THREE.BoxGeometry(22,3,24),M(0x9c8660));lakeG.position.set(-38,1.5,0);scene.add(lakeG);
+const lakeW=new THREE.Mesh(new THREE.BoxGeometry(21,1,23,12,1,12),M(0x2a8fd6,{transparent:true,opacity:.85}));scene.add(lakeW);
+bx(3,3.4,3.4,0x8d99a6,-26,1.7,0,null,"captacion");bx(3.4,.3,3.8,0x6c7a89,-26,3.55,0,null,"captacion");bx(.15,2.2,3,0x33414f,-24.4,1.6,0,null,"captacion");
+bx(1.2,1.4,1.2,0xdfe4e9,-26,4.4,0,null,"captacion");
+label("Fuente y captación",-34,9,0);
+/* PTAP */
+const ptap=new THREE.Group();ptap.position.set(-15,0,0);scene.add(ptap);
+[-4.8,-1.6,1.6,4.8].forEach(x=>bx(3.1,.3,6.6,0xb9c1c9,x,.15,0,ptap,"ptap"));
+bx(2.6,1.5,3.2,0x8aa4bb,-4.8,1.05,.4,ptap,"ptap");bx(2.2,.1,2.8,0x2a6f99,-4.8,1.82,.4,ptap);bx(1.1,1.6,1.1,0xd8dee4,-4.8,1.1,-2.5,ptap,"ptap");bx(1.3,.15,1.3,0x6c7a89,-4.8,1.95,-2.5,ptap);
+[-1.8,1.8].forEach(z=>{cy(1.15,1.15,1.6,0xa9c3d6,-1.6,1.1,z,ptap,"ptap");cy(1.02,1.02,.05,0x2f9bd8,-1.6,1.92,z,ptap);});
+bx(.5,.1,5,0x8a949e,-1.6,2.1,0,ptap);
+cy(1.35,1.35,2.2,0x4f86b5,1.6,1.4,-.6,ptap,"ptap");cy(.15,1.35,.5,0x3b6f9c,1.6,2.75,-.6,ptap,"ptap");bx(1,1.2,1,0xe8e1d5,1.6,.9,2.4,ptap,"ptap");
+bx(2.7,2.2,3.6,0xe6e2d8,4.8,1.4,0,ptap,"ptap");bx(3.1,.2,4,0x8a4b3a,4.8,2.6,0,ptap);bx(.8,1.3,.05,0x4a5a6a,4.8,.95,1.83,ptap);
+label("PTAP: Captación · Tratamiento · Agua tratada · Salida",-15,7,0).scale.set(15,3.5,1);
+/* Estación de bombeo */
+const pump=new THREE.Group();scene.add(pump);
+bx(6.4,.4,4.6,0xb9bfc5,0,.2,-.8,pump,"bomba");
+const vol=cy(1.25,1.25,1.2,0x1769aa,0,1.5,0,pump,"bomba",24);vol.rotation.x=Math.PI/2;
+const mot=cy(.95,.95,2.6,0x2f7fb8,0,1.5,-1.9,pump,"bomba",20);mot.rotation.x=Math.PI/2;
+for(let k=0;k<5;k++){const r=cy(1.02,1.02,.12,0x1b5c8c,0,1.5,-.9-k*.45,pump,null,20);r.rotation.x=Math.PI/2;}
+const imp=bx(1.3,.14,.14,0xffffff,0,1.5,-3.25,pump);
+[[-2.1,1.8,0x4f86b5],[1.8,1,0x1769aa]].forEach(([x,l,c])=>{const st=cy(.5,.5,l,c,x,1.3,0,pump,null,12);st.rotation.z=Math.PI/2;});
+bx(1.2,2.2,.9,0xdfe4e9,2.4,1.5,-1.6,pump,"bomba");
+const pled=new THREE.Mesh(new THREE.SphereGeometry(.35),new THREE.MeshBasicMaterial({color:0x888888}));pled.position.set(2.4,2.85,-1.6);pump.add(pled);
+label("Estación de bombeo",0,7,0);
+/* Tanque */
+const tank=new THREE.Group();tank.position.set(20,0,0);scene.add(tank);
+bx(10.6,.4,10.6,0xb9bfc5,0,-.2,0,tank);
+const tkGlass=add(new THREE.Mesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshBasicMaterial({color:0xaed6f1,transparent:true,opacity:.18,depthWrite:false})),"tanque",tank);
+const tkEdges=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1,1,1)),new THREE.LineBasicMaterial({color:0x1769aa}));tank.add(tkEdges);
+const tkWater=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),M(0x1e88e5,{transparent:true,opacity:.8}));tank.add(tkWater);
+const tkG=cy(.17,.17,1,0xdde6ee,0,.5,0,tank,null,10,{transparent:true,opacity:.6}),tkGW=cy(.12,.12,1,0x1e88e5,0,.5,0,tank,null,10);
+const tkLab=label("Tanque de almacenamiento",20,10,0);
+/* Sectores urbanos con viviendas */
+const sectors=[],PAL=[0xf2e2b6,0xf4c7c3,0xbfdcf0,0xe9d5b5,0xf7f3ea,0xcfe3c0],ROOF=[0xb5533c,0x8a4b3a,0x9c3d2e,0x6d6f73],WG={emissive:0x1d3b52};
+function casa(par,x,z,w,d,fl,wall,roof,face,gable,id){
+ const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=face>0?0:Math.PI;par.add(g);
+ const h=fl*1.5,body=add(new THREE.Mesh(new THREE.BoxGeometry(w,h,d),M(wall)),id,g);body.position.y=.2+h/2;
+ for(let f=0;f<fl;f++)[-1,1].forEach(sg=>{if(f===0&&sg===1)bx(.8,1.2,.06,0x5a3d2b,w*.27,.8,d/2+.02,g);else bx(.7,.6,.06,0x9ed0ee,sg*w*.27,.2+f*1.5+.95,d/2+.02,g,null,WG);});
+ if(gable){const rh=1.1,sh=new THREE.Shape();sh.moveTo(-w/2-.25,0);sh.lineTo(w/2+.25,0);sh.lineTo(0,rh);sh.closePath();
+  const r=new THREE.Mesh(new THREE.ExtrudeGeometry(sh,{depth:d+.5,bevelEnabled:false}),M(roof));r.position.set(0,.2+h,-(d+.5)/2);g.add(r);bx(1.1,.07,.6,roof,w*.27,1.5,d/2+.3,g);}
+ else{bx(w+.1,.25,d+.1,0xe9e6df,0,.32+h,0,g);cy(.38,.38,.7,0x2c3138,-w*.25,.9+h,-d*.2,g,null,12);bx(.1,.3,.1,0x555,-w*.25,.55+h,-d*.2,g);}
+ if(fl>=2){bx(w*.6,.08,.5,0xd5d0c6,0,1.7,d/2+.25,g);bx(w*.6,.35,.04,0x6a737c,0,1.95,d/2+.5,g);}
+}
+[-11,0,11].forEach((z,i)=>{const g=new THREE.Group();g.position.set(47,0,z);scene.add(g);const id="S"+(i+1);
+ bx(12.4,.2,10.2,0xcfcfc8,0,.1,0,g);bx(12.4,.22,1.6,0x3a3f45,0,.11,0,g);for(let k=-5;k<=5;k+=2)bx(.9,.03,.12,0xf5f5f5,k,.24,0,g);
+ [[-4,-3,3,2.6,2],[0,-3,3.2,2.8,1],[4,-3,3,2.6,3],[-4,3,3,2.6,1],[0,3,3.2,2.8,2],[4,3,3,2.6,1]].forEach((q,k)=>casa(g,q[0],q[1],q[2],q[3],q[4],PAL[(k+i*2)%6],ROOF[(k+i)%4],q[1]<0?1:-1,q[4]<3&&k!==1,id));
+ tree(-5.8,0,.55,g);tree(5.8,0,.55,g);cy(.06,.06,4.8,0x333333,0,4.6,0,g,null,6);
+ const ind=new THREE.Mesh(new THREE.SphereGeometry(.8),new THREE.MeshBasicMaterial({color:0x1b9a5a}));ind.position.set(0,7.2,0);g.add(ind);
+ const bar=new THREE.Mesh(new THREE.BoxGeometry(.8,1,.8),new THREE.MeshBasicMaterial({color:0xcf3b3b}));g.add(bar);
+ sectors.push({g,ind,bar});label("Sector "+(i+1),47,10,z).scale.set(6,1.6,1);});
+/* Tuberías */
+const pipes={};
+function mkPipe(id,pts,col,r,sel){const grp=new THREE.Group();scene.add(grp);const meshes=[];
+ for(let i=0;i<pts.length-1;i++){const a=new THREE.Vector3(...pts[i]),b=new THREE.Vector3(...pts[i+1]),d=b.clone().sub(a),len=d.length();
+  const m=new THREE.Mesh(new THREE.CylinderGeometry(1,1,len,14),M(col));m.position.copy(a.clone().add(b).multiplyScalar(.5));m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.normalize());m.userData.len=len;
+  if(sel){m.userData.id=id;selectable.push(m);}grp.add(m);meshes.push(m);}
+ pipes[id]={grp,meshes,pts:pts.map(v=>new THREE.Vector3(...v)),col,r};setR(id,r);}
+function setR(id,r){pipes[id].meshes.forEach(m=>m.scale.set(r,1,r));pipes[id].r=r;}
+mkPipe("in",[[-26,1.5,0],[-18,1.5,0]],0x6c7a89,.35,false);
+mkPipe("P1",[[-12.5,1.2,0],[-3,1.2,0]],0x4f86b5,.5,true);
+mkPipe("P2",[[1.2,1.3,0],[8,1.3,0],[8,1.3,0],[15,1.3,0]],0x1769aa,.5,true);
+mkPipe("P3",[[25,1.2,0],[32,1.2,0],[32,1.2,-11],[41,1.2,-11]],0x2c9c8e,.5,true);
+mkPipe("B2",[[32,1.2,0],[41,1.2,0]],0x2c9c8e,.3,false);mkPipe("B3",[[32,1.2,0],[32,1.2,11],[41,1.2,11]],0x2c9c8e,.3,false);
+/* Válvulas e instrumentos virtuales */
+const valves={},instr={};
+function mkValve(id,x,y){const g=new THREE.Group();g.position.set(x,y,0);scene.add(g);
+ const b=cy(.9,.9,1.6,0x8a949e,0,0,0,g,"V_"+id,16);b.rotation.z=Math.PI/2;cy(.2,.2,1.4,0x555d66,0,1.1,0,g,null,8);
+ const pivot=new THREE.Group();pivot.position.y=1.9;g.add(pivot);const wheel=new THREE.Mesh(new THREE.TorusGeometry(.6,.09,8,20),M(0x1b9a5a));wheel.rotation.x=Math.PI/2;pivot.add(wheel);bx(1.1,.1,.1,0x222222,0,0,0,pivot);valves[id]={pivot,wheel};}
+mkValve("vin",4.5,1.3);mkValve("vout",27,1.2);
+function mkInstr(id,x,y,z,sh){const c=document.createElement("canvas");c.width=288;c.height=104;const t=new THREE.CanvasTexture(c);
+ const s=new THREE.Sprite(new THREE.SpriteMaterial({map:t,depthTest:false}));s.scale.set(7.2,2.6,1);s.position.set(x,y+sh,z);scene.add(s);
+ if(sh>0){cy(.07,.07,sh,0x444c55,x,y+sh/2,z,null,null,6);bx(.5,.5,.5,0x6c7a89,x,y+.25,z);}
+ instr[id]=(a,b,col)=>{const g=c.getContext("2d");col=col||"#1769aa";g.fillStyle="#fff";g.fillRect(0,0,288,104);g.strokeStyle=col;g.lineWidth=6;g.strokeRect(3,3,282,98);g.fillStyle="#0a2a4a";g.font="bold 22px Arial";g.textAlign="center";g.fillText(a,144,36);g.font="bold 30px Arial";g.fillStyle=col;g.fillText(b,144,78);t.needsUpdate=true;};return s;}
+mkInstr("q2",9.5,1.3,0,3.6);mkInstr("p2",13.2,1.3,-3,3.6);mkInstr("q3",30,1.2,0,3.6);const lvS=mkInstr("lv",20,0,0,0);
+function updInstr(F,P2,h,pct,pkpa){instr.q2("Caudalímetro P2",fmt(U.m3s_Lps(F.Qin))+" L/s");instr.p2("Manómetro (residual)",fmt(pkpa,1)+" kPa",F.Hres<0?"#cf3b3b":"#1769aa");instr.q3("Caudalímetro P3",fmt(U.m3s_Lps(F.Qout))+" L/s");instr.lv("Sensor de nivel",fmt(h,2)+" m · "+fmt(pct,0)+" %",pct<15?"#cf3b3b":"#1769aa");}
+/* Partículas de flujo */
+const pGeo=new THREE.SphereGeometry(.28),parts=[];
+[["P1",0x8fd3ff],["P2",0x8fd3ff],["P3",0x9ef0e0]].forEach(([id,c])=>{const arr=[];for(let i=0;i<8;i++){const m=new THREE.Mesh(pGeo,new THREE.MeshBasicMaterial({color:c}));scene.add(m);arr.push(m);}parts.push({id,arr});});
+function pathPos(pts,u){let tot=0;const L=[];for(let i=0;i<pts.length-1;i++){L.push(pts[i].distanceTo(pts[i+1]));tot+=L[i];}let d=u*tot;for(let i=0;i<L.length;i++){if(d<=L[i]||i===L.length-1)return pts[i].clone().lerp(pts[i+1],L[i]>0?Math.min(1,d/L[i]):0);d-=L[i];}}
+/* Cámara orbital propia */
+const home={th:-.55,ph:1.0,r:105,t:new THREE.Vector3(10,2,0)};let C={th:home.th,ph:home.ph,r:home.r,t:home.t.clone()};
+function placeCam(){cam.position.set(C.t.x+C.r*Math.sin(C.ph)*Math.sin(C.th),C.t.y+C.r*Math.cos(C.ph),C.t.z+C.r*Math.sin(C.ph)*Math.cos(C.th));cam.lookAt(C.t);}
+const ptrs=new Map();let moved=0,pinch=0,downAt=null;
+const cv=renderer.domElement;
+cv.addEventListener("contextmenu",e=>e.preventDefault());
+cv.addEventListener("pointerdown",e=>{cv.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY,b:e.button,s:e.shiftKey});moved=0;downAt={x:e.clientX,y:e.clientY};pinch=0;});
+cv.addEventListener("pointermove",e=>{const q=ptrs.get(e.pointerId);if(!q)return;const dx=e.clientX-q.x,dy=e.clientY-q.y;
+ if(ptrs.size===2){const [a,b]=[...ptrs.values()];const d0=Math.hypot(a.x-b.x,a.y-b.y);q.x=e.clientX;q.y=e.clientY;const d1=Math.hypot(a.x-b.x,a.y-b.y);if(pinch)C.r=clamp(C.r*pinch/d1,15,200);pinch=d1;moved=9;return;}
+ q.x=e.clientX;q.y=e.clientY;moved+=Math.abs(dx)+Math.abs(dy);
+ if(q.b===2||q.s){const k=C.r*.0016,right=new THREE.Vector3().setFromMatrixColumn(cam.matrix,0);C.t.addScaledVector(right,-dx*k);C.t.y=clamp(C.t.y+dy*k,-5,40);}
+ else{C.th-=dx*.006;C.ph=clamp(C.ph-dy*.006,.15,1.5);}});
+const up=e=>{ptrs.delete(e.pointerId);if(!ptrs.size&&moved<5&&downAt)pick(e);};cv.addEventListener("pointerup",up);cv.addEventListener("pointercancel",e=>ptrs.delete(e.pointerId));
+cv.addEventListener("wheel",e=>{e.preventDefault();C.r=clamp(C.r*(1+Math.sign(e.deltaY)*.08),15,200);},{passive:false});
+const ray=new THREE.Raycaster();let selId="P2";
+function pick(e){const r=cv.getBoundingClientRect();ray.setFromCamera(new THREE.Vector2((e.clientX-r.left)/r.width*2-1,-((e.clientY-r.top)/r.height)*2+1),cam);
+ const h=ray.intersectObjects(selectable,false)[0];if(h){selId=h.object.userData.id;if(["P1","P2","P3"].includes(selId))$("pipeSel").value=selId;actualizar();}}
+$("bHome").onclick=()=>{C={th:home.th,ph:home.ph,r:home.r,t:home.t.clone()};};
+let showL=true;$("bLabels").onclick=()=>{showL=!showL;labels.forEach(l=>l.visible=showL);};
+function resize(){const w=view.clientWidth,h=view.clientHeight;renderer.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix();}
+new ResizeObserver(resize).observe(view);
+
+/* ===== Gráficas ===== */
+function mk(id,ds,yl){return new Chart($(id),{type:"line",data:{labels:S.hist.t,datasets:ds},options:{animation:false,responsive:true,maintainAspectRatio:true,aspectRatio:2.2,elements:{point:{radius:0},line:{borderWidth:2}},scales:{x:{title:{display:true,text:"Tiempo simulado (h)"}},y:{title:{display:true,text:yl}}},plugins:{legend:{labels:{boxWidth:12}}}}});}
+const ln=(l,k,c)=>({label:l,data:S.hist[k],borderColor:c,backgroundColor:c,tension:.2});
+const ch1=mk("c1",[ln("Volumen V","V","#1769aa")],"m³");
+const ch2=mk("c2",[ln("Entrada","qin","#1b9a5a"),ln("Demanda","qd","#cf3b3b"),ln("Entregado","qe","#1769aa")],"L/s");
+const ch3=mk("c3",[ln("Hp","hp","#0a2a4a"),ln("hf","hf","#e0920b"),ln("Hresidual","hr","#2c9c8e")],"m");
+const ch4=new Chart($("c4"),{type:"scatter",data:{datasets:[{label:"A(y)=P·y−2y²",type:"line",data:[],borderColor:"#1769aa",pointRadius:0,tension:.3},{label:"Punto actual",data:[],backgroundColor:"#e0920b",pointRadius:6},{label:"Máximo",data:[],backgroundColor:"#cf3b3b",pointRadius:6}]},options:{animation:false,aspectRatio:2,scales:{x:{title:{display:true,text:"y (m)"}},y:{title:{display:true,text:"A (m²)"}}}}});
+
+/* ===== Actualización de resultados ===== */
+const card=(l,v,cls="")=>`<div class="m ${cls}"><b>${v}</b><span>${l}</span></div>`;
+function actualizar(){
+ const F=flujos(1),{Vmax,area}=volTanque(),h=nivel(S.V,area),pct=Vmax>0?S.V/Vmax*100:0;
+ const empty=S.V<=1e-6,full=approx(S.V,Vmax,1e-9);
+ const P2=F.pm,P1=tuberia(P2.Q,p.D,50,p.eps),P3=tuberia(F.Qout,p.D,400,p.eps);
+ const hp_= p.hp,Hpiez=p.hp-P2.hf,pkpa=presionPa(P2.rho,F.Hres)/1000;
+ const Pw=p.pnom>0?U.kW_W(p.pnom):potenciaElec(P2.rho,P2.Q,p.hp,p.eta);
+ const kW=U.W_kW(Pw),E=kW*p.hrs*p.dias,cv_=E*p.tar,Ct=costoLineal(E,p.tar,p.fijo);
+ const bal=S.cIn-S.cOut-S.cSp-(S.V-S.V0);
+ $("cards").innerHTML=[
+ card("Volumen / capacidad (m³)",`${fmt(S.V)} / ${fmt(Vmax)}`),card("Llenado (%)",fmt(pct),pct<15?"bad":pct<30?"warn":"ok"),
+ card("Nivel de agua h (m)",fmt(h,3)),card("Tiempo simulado (h)",fmt(U.s_h(S.t))),
+ card("Caudal de entrada efectivo (L/s)",fmt(U.m3s_Lps(F.Qin))),card("Demanda requerida (L/s)",fmt(U.m3s_Lps(F.Qdem))),
+ card("Caudal entregado (L/s)",fmt(U.m3s_Lps(F.Qdel))),card("Déficit (L/s) · (%)",`${fmt(U.m3s_Lps(F.Qdef))} · ${fmt(F.defPct)}`,F.Qdef>1e-9?"bad":"ok"),
+ card("Excedente potencial (L/s)",fmt(U.m3s_Lps(F.Qexc))),card("Pérdidas en red (L/s)",fmt(U.m3s_Lps(F.Qloss))),
+ card("Carga de bombeo Hp (m)",fmt(hp_)),card("Carga piezométrica final Hp−hf (m)",fmt(Hpiez)),
+ card("Carga de presión residual (m)",fmt(F.Hres),F.Hres<10?"warn":"ok"),card("Presión manométrica (kPa)",fmt(pkpa)),
+ card("Potencia eléctrica (kW)",fmt(kW)),card("Energía mensual (kWh)",fmt(E)),
+ card("Costo variable (COP)",fmt(cv_,0)),card("Costo total mensual (COP)",fmt(Ct,0)),
+ card("Vertido por rebose acum. (m³)",fmt(S.cSp)),card("Error de balance (m³)",fmt(bal,6))].join("");
+ const al=[];const A=(c,t)=>al.push(`<div class="a-${c}">${t}</div>`);
+ if(empty)A("bad","Tanque vacío: no hay reserva para la red.");else if(pct<15)A("bad","Nivel bajo del tanque (&lt;15 %).");
+ if(full)A("warn","Tanque lleno: el excedente se rebosa (volumen limitado a Vmax).");
+ if(F.Qdef>1e-9)A("bad",`Déficit de abastecimiento: ${fmt(F.defPct)} % de la demanda no se satisface.`);
+ if(P2.Q>EPS&&F.Hres<0)A("bad","La bomba no vence pérdidas y desnivel (Hresidual &lt; 0): caudal de entrada efectivo = 0. Aumente Hp o D, o reduzca L, Q o Δz.");
+ if(S.lake<=EPS)A("bad","La fuente hipotética se agotó.");
+ if(P2.reg==="transición")A("warn","Zona de transición (2300 ≤ Re &lt; 4000): resultados aproximados.");
+ if(P2.reg==="turbulento")A("warn",`Régimen turbulento (Re=${fmt(P2.Re,0)}): se usa Darcy-Weisbach con Swamee-Jain; la ecuación laminar no es válida.`);
+ if(P2.v>3)A("warn","Velocidad &gt; 3 m/s: alta para una conducción.");else if(P2.v>EPS&&P2.v<.3)A("warn","Velocidad &lt; 0,3 m/s: riesgo de sedimentación.");
+ if(!al.length)A("ok","Sistema operando dentro de los supuestos del modelo.");
+ $("alerts").innerHTML=al.join("");
+ /* tubería / componente */
+ const pm={P1:P1,P2:P2,P3:P3}[$("pipeSel").value];
+ $("pipeInfo").innerHTML=[card("Longitud (m)",fmt(pm.L)),card("Diámetro (mm)",fmt(U.m_mm(pm.D))),card("Caudal (L/s)",fmt(U.m3s_Lps(pm.Q))),card("Velocidad (m/s)",fmt(pm.v,3)),card("Reynolds",fmt(pm.Re,0)),card("Régimen",pm.reg),card("Factor f",fmt(pm.f,4)),card("hf (m)",fmt(pm.hf,3))].join("");
+ const nm={captacion:"Captación de la fuente",ptap:"PTAP (esquema conceptual)",bomba:"Estación de bombeo",tanque:`Tanque: ${fmt(S.V)} m³ de ${fmt(Vmax)} m³ (${fmt(pct)} %)`,S1:"Sector 1",S2:"Sector 2",S3:"Sector 3",V_vin:"Válvula de entrada: apertura "+fmt(p.vin,0)+" %",V_vout:"Válvula de salida a la red: apertura "+fmt(p.vout,0)+" %"};
+ const sh={S1:.4,S2:.35,S3:.25};
+ let txt=nm[selId];if(sh[selId])txt+=`: demanda ${fmt(U.m3s_Lps(F.Qdem)*sh[selId])} L/s, recibe ${fmt(U.m3s_Lps(F.Qdel)*sh[selId])} L/s`;
+ if(["P1","P2","P3"].includes(selId))txt=`${selId}: L=${fmt(pm.L)} m · D=${fmt(U.m_mm(pm.D))} mm · Q=${fmt(U.m3s_Lps(pm.Q))} L/s · v=${fmt(pm.v,3)} m/s · hf=${fmt(pm.hf,3)} m`;
+ if(selId==="bomba")txt+=` · ${F.pumpOn?"en funcionamiento":"detenida/sin condiciones"} · P=${fmt(kW)} kW`;
+ $("info").textContent=txt;
+ /* ecuaciones */
+ $("eqs").textContent=
+`V = L·B·h → ${fmt(p.TL)}·${fmt(p.TB)}·${fmt(h,3)} = ${fmt(S.V)} m³ ; Vmax = ${fmt(Vmax)} m³ ; h = V/(L·B) ; % = ${fmt(pct)}
+Balance: V(t+Δt) = V(t) + (Qent − Qsal)·Δt   [Qent=${fmt(F.Qin,5)} m³/s, Qsal=${fmt(F.Qout,5)} m³/s]
+Déficit: Qdef = max(0, Qdem − Qent) = ${fmt(U.m3s_Lps(F.Qdef),3)} L/s ; D = Qdef/Qdem·100 = ${fmt(F.defPct)} %
+Excedente: Qexc = max(0, Qdisp − Qdem) = ${fmt(U.m3s_Lps(F.Qexc),3)} L/s (no implica capacidad de almacenarlo)
+Costo: E = P·t = ${fmt(kW)} kW·${fmt(p.hrs*p.dias,1)} h = ${fmt(E)} kWh ; C(V) = V·Tarifa + CargoFijo = ${fmt(Ct,0)} COP
+P = ρ·g·Q·H/η = ${fmt(P2.rho,2)}·${fmt(G,3)}·${fmt(F.Qin,5)}·${fmt(p.hp)}/${fmt(p.eta)} = ${fmt(Pw,1)} W
+Laminar: hf = 128·μ·L·Q/(ρ·g·π·D⁴) = ${fmt(hfLaminar(P2.mu,p.L,P2.Q,P2.rho,P2.D),3)} m ${P2.reg==="laminar"?"(VÁLIDA)":"(solo referencia: flujo no laminar)"}
+Darcy-Weisbach: hf = f·(L/D)·v²/(2g) = ${fmt(P2.f,4)}·(${fmt(p.L)}/${fmt(P2.D,3)})·${fmt(P2.v,3)}²/(2g) = ${fmt(hfDarcy(P2.f,p.L,P2.D,P2.v),3)} m
+v = Q/A = ${fmt(P2.v,3)} m/s ; Re = ρvD/μ = ${fmt(P2.Re,0)} (μ=${P2.mu.toExponential(3)} Pa·s) ; ${P2.reg}
+Hresidual = Hp − hf − Δz = ${fmt(p.hp)} − ${fmt(P2.hf,3)} − ${fmt(p.dz)} = ${fmt(F.Hres,3)} m ; p = ρ·g·H = ${fmt(pkpa)} kPa`;
+ /* cuadrática */
+ const o=canalOpt(Q.P),b=Q.P-2*Q.y,A_=areaCanal(Q.P,Q.y),rr=raicesCanal(Q.P,Q.At);
+ let rt=rr?rr.map(y=>`y=${fmt(y,3)} m (b=${fmt(Q.P-2*y,3)} m${Q.P-2*y>0?"":", no válido"})`).join(" ; "):`Sin solución real (A objetivo > Amax)`;
+ $("qres").textContent=`b = P − 2y = ${fmt(b,3)} m ; A(y) = P·y − 2y² = ${fmt(A_,3)} m²
+Óptimo: y = P/4 = ${fmt(o.y,3)} m ; b = P/2 = ${fmt(o.b,3)} m ; Amax = P²/8 = ${fmt(o.A,3)} m²
+Para A = ${fmt(Q.At,2)} m²: 2y² − P·y + A = 0 ; Δ = P² − 8A = ${fmt(Q.P*Q.P-8*Q.At,3)}
+Soluciones: ${rt}`;
+ const pts=[];for(let i=0;i<=40;i++){const y=Q.P/2*i/40;pts.push({x:y,y:areaCanal(Q.P,y)});}
+ ch4.data.datasets[0].data=pts;ch4.data.datasets[1].data=[{x:Q.y,y:A_}];ch4.data.datasets[2].data=[{x:o.y,y:o.A}];ch4.update("none");
+ [ch1,ch2,ch3].forEach(c=>c.update("none"));
+ updInstr(F,P2,h,pct,pkpa);}
+/* ===== Muestreo y bucle ===== */
+function muestrear(){const F=flujos(1),H=S.hist;if(S.t-S.lastSample<Math.max(1,+$("speed").value*.4)&&H.t.length)return;S.lastSample=S.t;
+ H.t.push(+U.s_h(S.t).toFixed(3));H.V.push(S.V);H.qin.push(U.m3s_Lps(F.Qin));H.qd.push(U.m3s_Lps(F.Qdem));H.qe.push(U.m3s_Lps(F.Qdel));H.hp.push(p.hp);H.hf.push(F.pm.hf);H.hr.push(F.Hres);
+ if(H.t.length>600)for(const k in H)H[k].shift();}
+let last=performance.now(),acc=0,ui=0;
+function frame(now){requestAnimationFrame(frame);const dtr=Math.min(.1,(now-last)/1000);last=now;
+ const F=flujos(1);
+ if(S.run){const sp=+$("speed").value;let rem=dtr*sp;const step=Math.min(30,Math.max(.5,sp/10));while(rem>1e-9){const d=Math.min(step,rem);paso(d);rem-=d;}muestrear();ui+=dtr;if(ui>.25){ui=0;actualizar();}}
+ /* animación 3D */
+ const{Vmax,area}=volTanque(),s=8/Math.max(p.TL,p.TB,p.TH),vw=p.TL*s,vb=p.TB*s,vh=p.TH*s,hv=Vmax>0?S.V/Vmax*vh:0;
+ tkGlass.scale.set(vw,vh,vb);tkGlass.position.y=vh/2;tkEdges.scale.set(vw,vh,vb);tkEdges.position.y=vh/2;
+ tkWater.scale.set(vw*.98,Math.max(hv,.001),vb*.98);tkWater.position.y=hv/2;tkLab.position.y=vh+3;tkG.position.set(vw/2+.7,vh/2,vb/2-.2);tkG.scale.y=vh;tkGW.position.set(vw/2+.7,hv/2,vb/2-.2);tkGW.scale.y=Math.max(hv,.001);lvS.position.set(20,vh+6.5,0);
+ [["vin",p.vin],["vout",p.vout]].forEach(([k,v])=>{const o=valves[k];o.wheel.material.color.set(v>=99?0x1b9a5a:v>0?0xe0920b:0xcf3b3b);o.pivot.rotation.y=v/100*Math.PI*3;});
+ const pct=Vmax>0?S.V/Vmax:0;tkWater.material.color.set(pct<.15?0xcf3b3b:pct<.3?0xe0920b:0x1e88e5);
+ const lk=Math.max(.05,S.lake/5e5);lakeW.scale.y=lk;lakeW.position.set(-38,3+lk*.5,0);
+ const pos=lakeW.geometry.attributes.position;if(!lakeW.userData.o)lakeW.userData.o=pos.array.slice();
+ for(let i=0;i<pos.count;i++){const o=lakeW.userData.o;if(o[i*3+1]>0)pos.array[i*3+1]=o[i*3+1]+.12*Math.sin(now/600+o[i*3]*.5+o[i*3+2]*.4);}pos.needsUpdate=true;
+ const r0=.3+U.m_mm(.001*p.D)*.0; const rr=.25+p.D/500*.7;["P1","P2","P3"].forEach(id=>setR(id,rr));setR("B2",rr*.6);setR("B3",rr*.6);
+ pled.material.color.set(F.pumpOn?0x3ddc84:(p.qin>EPS?0xcf3b3b:0x888888));imp.rotation.z+=F.pumpOn?dtr*8:0;
+ const flow={P1:F.Qin,P2:F.Qin,P3:F.Qout};
+ parts.forEach(pt=>{const on=flow[pt.id]>EPS&&(S.run||true);pt.arr.forEach((m,i)=>{m.visible=on;if(on){const u=((now/1000)*(S.run?.12:.05)+i/pt.arr.length)%1;m.position.copy(pathPos(pipes[pt.id].pts,u));}});});
+ const ratio=F.Qdem>EPS?F.Qdel/F.Qdem:1;
+ sectors.forEach(sc=>{sc.ind.material.color.set(ratio>=.995?0x1b9a5a:ratio>=.7?0xe0920b:0xcf3b3b);const dh=Math.max(.01,(1-Math.min(1,ratio))*4);sc.bar.scale.y=dh;sc.bar.position.set(-6.7,dh/2,0);sc.bar.visible=ratio<.995;});
+ $("led").classList.toggle("on",S.run);$("ledt").textContent=S.run?"En simulación":"Detenido";
+ placeCam();renderer.render(scene,cam);}
+/* Botones */
+$("bStart").onclick=()=>{S.run=true;};$("bPause").onclick=()=>{S.run=false;actualizar();};$("bReset").onclick=()=>{S.run=false;reiniciar();};
+$("bRestore").onclick=()=>{S.run=false;Object.assign(p,DEF);LIM.h0[1]=DEF.TH;CFG.forEach(g=>g.slice(1).forEach(c=>{$("r_"+c[0]).max=$("n_"+c[0]).max=c[4];}));setMax("h0",p.TH);Object.assign(Q,{P:12,y:2.5,At:15});CFG.forEach(g=>g.slice(1).forEach(c=>syncCtl(c[0])));syncQ();$("r_y").max=$("n_y").max=Q.P/2-.01;reiniciar();};
+$("pipeSel").onchange=()=>{selId=$("pipeSel").value;actualizar();};
+scene.traverse(o=>{if(o.isMesh&&o.material.type==="MeshLambertMaterial"){o.receiveShadow=true;o.castShadow=!o.material.transparent;}});
+setMax("h0",p.TH);resize();reiniciar();requestAnimationFrame(frame);
+</script>
+</body>
+</html>
